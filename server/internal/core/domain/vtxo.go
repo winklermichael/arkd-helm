@@ -49,7 +49,7 @@ type Vtxo struct {
 	CreatedAt          int64
 }
 
-func (v Vtxo) IsPending() bool {
+func (v Vtxo) IsPreconfirmed() bool {
 	return len(v.RedeemTx) > 0
 }
 

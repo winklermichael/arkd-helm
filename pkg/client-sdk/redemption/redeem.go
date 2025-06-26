@@ -2,170 +2,178 @@ package redemption
 
 import (
 	"bytes"
+	"context"
 	"encoding/hex"
 	"fmt"
-	"math"
+	"strings"
 	"time"
 
 	"github.com/ark-network/ark/common/tree"
 	"github.com/ark-network/ark/pkg/client-sdk/explorer"
+	"github.com/ark-network/ark/pkg/client-sdk/indexer"
 	"github.com/ark-network/ark/pkg/client-sdk/types"
 	"github.com/btcsuite/btcd/btcutil/psbt"
 )
 
 type CovenantlessRedeemBranch struct {
-	vtxo           types.Vtxo
-	branch         []*psbt.Packet
-	vtxoTreeExpiry time.Duration
-	explorer       explorer.Explorer
+	vtxo     types.Vtxo
+	branch   []indexer.ChainWithExpiry
+	explorer explorer.Explorer
+	indexer  indexer.Indexer
 }
 
-func NewRedeemBranch(
-	explorer explorer.Explorer,
-	graph *tree.TxGraph, vtxo types.Vtxo,
-) (*CovenantlessRedeemBranch, error) {
-	vtxoTreeExpiry, err := tree.GetVtxoTreeExpiry(graph.Root.Inputs[0])
-	if err != nil {
-		return nil, err
-	}
-
-	subGraph, err := graph.SubGraph([]string{vtxo.Txid})
-	if err != nil {
-		return nil, err
-	}
-
-	// If subGraph is nil, it means there's no path from root to the vtxo
-	// This could happen if the vtxo is not part of the graph
-	if subGraph == nil {
-		return nil, fmt.Errorf("no path found to vtxo %s in graph", vtxo.Txid)
-	}
-
-	branch := make([]*psbt.Packet, 0)
-	_ = subGraph.Apply(func(g *tree.TxGraph) (bool, error) {
-		branch = append(branch, g.Root)
-		return true, nil
+func NewRedeemBranch(ctx context.Context, explorer explorer.Explorer, indexerSvc indexer.Indexer, vtxo types.Vtxo) (*CovenantlessRedeemBranch, error) {
+	chain, err := indexerSvc.GetVtxoChain(ctx, indexer.Outpoint{
+		Txid: vtxo.Txid,
+		VOut: vtxo.VOut,
 	})
+	if err != nil {
+		return nil, err
+	}
 
 	return &CovenantlessRedeemBranch{
-		vtxo:           vtxo,
-		branch:         branch,
-		vtxoTreeExpiry: time.Duration(vtxoTreeExpiry.Seconds()) * time.Second,
-		explorer:       explorer,
+		vtxo:     vtxo,
+		branch:   chain.Chain,
+		explorer: explorer,
+		indexer:  indexerSvc,
 	}, nil
 }
 
 // RedeemPath returns the list of transactions to broadcast in order to access the vtxo output
-func (r *CovenantlessRedeemBranch) RedeemPath() ([]string, error) {
-	transactions := make([]string, 0, len(r.branch))
-
-	offchainPath, err := r.OffchainPath()
-	if err != nil {
-		return nil, err
-	}
-
-	for _, ptx := range offchainPath {
-		firstInput := ptx.Inputs[0]
-		if len(firstInput.TaprootKeySpendSig) == 0 {
-			return nil, fmt.Errorf("missing taproot key spend signature")
-		}
-
-		var witness bytes.Buffer
-
-		if err := psbt.WriteTxWitness(&witness, [][]byte{firstInput.TaprootKeySpendSig}); err != nil {
-			return nil, err
-		}
-
-		ptx.Inputs[0].FinalScriptWitness = witness.Bytes()
-
-		extracted, err := psbt.Extract(ptx)
-		if err != nil {
-			return nil, err
-		}
-
-		var txBytes bytes.Buffer
-
-		if err := extracted.Serialize(&txBytes); err != nil {
-			return nil, err
-		}
-
-		transactions = append(transactions, hex.EncodeToString(txBytes.Bytes()))
-	}
-
-	return transactions, nil
-}
-
-func (r *CovenantlessRedeemBranch) ExpiresAt() (*time.Time, error) {
-	lastKnownBlocktime := int64(0)
-
-	var confirmed bool
-	blocktime := int64(math.MaxInt64)
-	for _, txid := range r.vtxo.CommitmentTxids {
-		rConfirmed, rBlocktime, _ := r.explorer.GetTxBlockTime(txid)
-		if confirmed && rBlocktime < blocktime {
-			blocktime = rBlocktime
-			confirmed = rConfirmed
-		}
-	}
-
-	if confirmed {
-		lastKnownBlocktime = blocktime
-	} else {
-		expirationFromNow := time.Now().Add(time.Minute).Add(r.vtxoTreeExpiry)
-		return &expirationFromNow, nil
-	}
-
-	for _, ptx := range r.branch {
-		txid := ptx.UnsignedTx.TxID()
-
-		confirmed, blocktime, err := r.explorer.GetTxBlockTime(txid)
-		if err != nil {
-			break
-		}
-
-		if confirmed {
-			lastKnownBlocktime = blocktime
-			continue
-		}
-
-		break
-	}
-
-	t := time.Unix(lastKnownBlocktime, 0).Add(r.vtxoTreeExpiry)
-	return &t, nil
-}
-
-// OffchainPath checks for transactions of the branch onchain and returns only the offchain part
-func (r *CovenantlessRedeemBranch) OffchainPath() ([]*psbt.Packet, error) {
-	offchainPath := append([]*psbt.Packet{}, r.branch...)
-
+// due to current P2A relay policy, we can't broadcast the branch tx until its parent tx is
+// confirmed so we'll broadcast only the first tx of every branch
+func (r *CovenantlessRedeemBranch) NextRedeemTx() (string, error) {
+	nextTxToBroadcast := ""
 	for i := len(r.branch) - 1; i >= 0; i-- {
-		ptx := r.branch[i]
-		txHash := ptx.UnsignedTx.TxID()
-
-		confirmed, _, err := r.explorer.GetTxBlockTime(txHash)
-
-		// if the tx is not found, it's offchain, let's continue
-		if err != nil {
+		tx := r.branch[i]
+		// commitment txs are always onchain, so we can skip them
+		switch tx.Type {
+		case indexer.IndexerChainedTxTypeCommitment, indexer.IndexerChainedTxTypeUnspecified:
 			continue
+		}
+
+		confirmed, _, err := r.explorer.GetTxBlockTime(tx.Txid)
+
+		// if the tx is not found, it's offchain, let's break
+		if err != nil {
+			nextTxToBroadcast = tx.Txid
+			break
 		}
 
 		// if found but not confirmed, it means the tx is in the mempool
 		// an unilateral exit is running, we must wait for it to be confirmed
 		if !confirmed {
-			return nil, ErrPendingConfirmation{Txid: txHash}
+			return "", ErrPendingConfirmation{Txid: tx.Txid}
+		}
+	}
+
+	if nextTxToBroadcast == "" {
+		return "", fmt.Errorf("no offchain txs found, the vtxo is already redeemed")
+	}
+
+	txs, err := r.indexer.GetVirtualTxs(context.Background(), []string{nextTxToBroadcast})
+	if err != nil {
+		return "", err
+	}
+
+	if len(txs.Txs) == 0 {
+		return "", fmt.Errorf("tx %s not found", nextTxToBroadcast)
+	}
+
+	tx, err := psbt.NewFromRawBytes(strings.NewReader(txs.Txs[0]), true)
+	if err != nil {
+		return "", err
+	}
+
+	for i, input := range tx.Inputs {
+		if len(input.TaprootKeySpendSig) > 0 {
+			// musig2 tx, finalize as tapkey spend
+			var witness bytes.Buffer
+			if err := psbt.WriteTxWitness(&witness, [][]byte{input.TaprootKeySpendSig}); err != nil {
+				return "", err
+			}
+
+			tx.Inputs[i].FinalScriptWitness = witness.Bytes()
+			continue
 		}
 
-		// if no error, the tx exists onchain, so we can remove it (+ the parents) from the branch
-		if i == len(r.branch)-1 {
-			offchainPath = []*psbt.Packet{}
-		} else {
-			offchainPath = r.branch[i+1:]
+		if len(input.TaprootLeafScript) > 0 {
+			// leaf script tx, it means it's a vtxo
+			// we need to extract the leaf script
+			leaf := input.TaprootLeafScript[0]
+
+			closure, err := tree.DecodeClosure(leaf.Script)
+			if err != nil {
+				return "", err
+			}
+
+			conditionWitness, err := tree.GetConditionWitness(input)
+			if err != nil {
+				return "", err
+			}
+
+			args := make(map[string][]byte)
+			if len(conditionWitness) > 0 {
+				var conditionWitnessBytes bytes.Buffer
+				if err := psbt.WriteTxWitness(&conditionWitnessBytes, conditionWitness); err != nil {
+					return "", err
+				}
+				args[tree.ConditionWitnessKey] = conditionWitnessBytes.Bytes()
+			}
+
+			for _, sig := range input.TaprootScriptSpendSig {
+				args[hex.EncodeToString(sig.XOnlyPubKey)] = sig.Signature
+			}
+
+			witness, err := closure.Witness(leaf.ControlBlock, args)
+			if err != nil {
+				return "", err
+			}
+
+			var witnessBytes bytes.Buffer
+			if err := psbt.WriteTxWitness(&witnessBytes, witness); err != nil {
+				return "", err
+			}
+
+			tx.Inputs[i].FinalScriptWitness = witnessBytes.Bytes()
+			continue
+		}
+
+		return "", fmt.Errorf("invalid tx, unable to finalize")
+	}
+
+	extracted, err := psbt.Extract(tx)
+	if err != nil {
+		return "", err
+	}
+
+	var txBytes bytes.Buffer
+
+	if err := extracted.Serialize(&txBytes); err != nil {
+		return "", err
+	}
+
+	return hex.EncodeToString(txBytes.Bytes()), nil
+}
+
+func (r *CovenantlessRedeemBranch) ExpiresAt() (*time.Time, error) {
+	lastKnownBlocktime := int64(0)
+	for _, node := range r.branch {
+		confirmed, _, err := r.explorer.GetTxBlockTime(node.Txid)
+		if err != nil {
+			break
+		}
+
+		if confirmed {
+			lastKnownBlocktime = node.ExpiresAt
+			continue
 		}
 
 		break
 	}
 
-	return offchainPath, nil
+	t := time.Unix(lastKnownBlocktime, 0)
+	return &t, nil
 }
 
 // ErrPendingConfirmation is returned when computing the offchain path of a redeem branch. Due to P2A relay policy, only 1C1P packages are accepted.

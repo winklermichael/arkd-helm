@@ -426,18 +426,31 @@ func (a *grpcClient) GetVtxoChain(
 
 	chain := make([]indexer.ChainWithExpiry, 0, len(resp.GetChain()))
 	for _, c := range resp.GetChain() {
+		var txType indexer.IndexerChainedTxType
+		switch c.GetType() {
+		case arkv1.IndexerChainedTxType_INDEXER_CHAINED_TX_TYPE_COMMITMENT:
+			txType = indexer.IndexerChainedTxTypeCommitment
+		case arkv1.IndexerChainedTxType_INDEXER_CHAINED_TX_TYPE_ARK:
+			txType = indexer.IndexerChainedTxTypeArk
+		case arkv1.IndexerChainedTxType_INDEXER_CHAINED_TX_TYPE_TREE:
+			txType = indexer.IndexerChainedTxTypeTree
+		case arkv1.IndexerChainedTxType_INDEXER_CHAINED_TX_TYPE_CHECKPOINT:
+			txType = indexer.IndexerChainedTxTypeCheckpoint
+		default:
+			txType = indexer.IndexerChainedTxTypeUnspecified
+		}
+
 		chain = append(chain, indexer.ChainWithExpiry{
-			Txid:      c.Txid,
-			Spends:    txChain{c.GetSpends()}.parse(),
+			Txid:      c.GetTxid(),
+			Type:      txType,
 			ExpiresAt: c.GetExpiresAt(),
+			Spends:    c.GetSpends(),
 		})
 	}
 
 	return &indexer.VtxoChainResponse{
-		Chain:              chain,
-		Depth:              resp.GetDepth(),
-		RootCommitmentTxid: resp.GetRootCommitmentTxid(),
-		Page:               parsePage(resp.GetPage()),
+		Chain: chain,
+		Page:  parsePage(resp.GetPage()),
 	}, nil
 }
 
@@ -570,21 +583,6 @@ func parsePage(page *arkv1.IndexerPageResponse) *indexer.PageResponse {
 		Next:    page.GetNext(),
 		Total:   page.GetTotal(),
 	}
-}
-
-type txChain struct {
-	chain []*arkv1.IndexerChainedTx
-}
-
-func (c txChain) parse() []indexer.ChainTx {
-	txs := make([]indexer.ChainTx, 0, len(c.chain))
-	for _, tx := range c.chain {
-		txs = append(txs, indexer.ChainTx{
-			Txid: tx.GetTxid(),
-			Type: tx.GetType().String(),
-		})
-	}
-	return txs
 }
 
 func newIndexerVtxos(vtxos []*arkv1.IndexerVtxo) []types.Vtxo {

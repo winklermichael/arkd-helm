@@ -110,10 +110,8 @@ type TxRequestInfo struct {
 }
 
 type VtxoChainResp struct {
-	Chain              []ChainWithExpiry
-	Page               PageResp
-	Depth              int32
-	RootCommitmentTxid string
+	Chain []ChainWithExpiry
+	Page  PageResp
 }
 
 type VOut int
@@ -176,10 +174,7 @@ type SweptCommitmentTxResp struct {
 	SweptBy []string
 }
 
-type Outpoint struct {
-	Txid string
-	Vout uint32
-}
+type Outpoint = domain.Outpoint
 
 type TxType int
 
@@ -215,13 +210,19 @@ type PageResp struct {
 	Total   int32
 }
 
-type ChainTx struct {
-	Txid string
-	Type string
-}
+type IndexerChainedTxType string
+
+const (
+	IndexerChainedTxTypeUnspecified IndexerChainedTxType = "unspecified"
+	IndexerChainedTxTypeCommitment  IndexerChainedTxType = "commitment"
+	IndexerChainedTxTypeArk         IndexerChainedTxType = "ark"
+	IndexerChainedTxTypeTree        IndexerChainedTxType = "tree"
+	IndexerChainedTxTypeCheckpoint  IndexerChainedTxType = "checkpoint"
+)
 
 type ChainWithExpiry struct {
 	Txid      string
-	Txs       []ChainTx
 	ExpiresAt int64
+	Type      IndexerChainedTxType
+	Spends    []string
 }

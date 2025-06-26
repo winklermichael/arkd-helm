@@ -429,33 +429,35 @@ func (a *restClient) GetVtxoChain(
 
 	chain := make([]indexer.ChainWithExpiry, 0, len(resp.Payload.Chain))
 	for _, v := range resp.Payload.Chain {
-		spends := make([]indexer.ChainTx, 0, len(v.Spends))
-		for _, tx := range v.Spends {
-			txType := "virtual"
-			if *tx.Type == models.V1IndexerChainedTxTypeINDEXERCHAINEDTXTYPECOMMITMENT {
-				txType = "commitment"
-			}
-			spends = append(spends, indexer.ChainTx{
-				Txid: tx.Txid,
-				Type: txType,
-			})
-		}
 		expiresAt, err := strconv.ParseInt(v.ExpiresAt, 10, 64)
 		if err != nil {
 			return nil, err
 		}
+
+		var txType indexer.IndexerChainedTxType
+		switch *v.Type {
+		case models.V1IndexerChainedTxTypeINDEXERCHAINEDTXTYPECOMMITMENT:
+			txType = indexer.IndexerChainedTxTypeCommitment
+		case models.V1IndexerChainedTxTypeINDEXERCHAINEDTXTYPEARK:
+			txType = indexer.IndexerChainedTxTypeArk
+		case models.V1IndexerChainedTxTypeINDEXERCHAINEDTXTYPETREE:
+			txType = indexer.IndexerChainedTxTypeTree
+		case models.V1IndexerChainedTxTypeINDEXERCHAINEDTXTYPECHECKPOINT:
+			txType = indexer.IndexerChainedTxTypeCheckpoint
+		default:
+			txType = indexer.IndexerChainedTxTypeUnspecified
+		}
 		chain = append(chain, indexer.ChainWithExpiry{
 			Txid:      v.Txid,
-			Spends:    spends,
 			ExpiresAt: expiresAt,
+			Type:      txType,
+			Spends:    v.Spends,
 		})
 	}
 
 	return &indexer.VtxoChainResponse{
-		Chain:              chain,
-		Depth:              resp.Payload.Depth,
-		RootCommitmentTxid: resp.Payload.RootCommitmentTxid,
-		Page:               parsePage(resp.Payload.Page),
+		Chain: chain,
+		Page:  parsePage(resp.Payload.Page),
 	}, nil
 }
 
