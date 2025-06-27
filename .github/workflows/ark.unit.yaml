@@ -50,9 +50,9 @@ jobs:
           go-version: '>=1.23.1'
       - uses: actions/checkout@v3
       - name: check linting
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v7
         with:
-          version: v1.61
+          version: v2.1.6
           working-directory: ./server
           args: --timeout 5m
       - name: check code integrity
@@ -84,9 +84,9 @@ jobs:
           go-version: '>=1.23.1'
       - uses: actions/checkout@v3
       - name: check linting
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v7
         with:
-          version: v1.61
+          version: v2.1.6
           working-directory: ./pkg/client-sdk
           args: --timeout 5m --skip-files=.*_test.go
       - name: check code integrity
@@ -110,9 +110,9 @@ jobs:
           go-version: '>=1.23.1'
       - uses: actions/checkout@v3
       - name: check linting
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v7
         with:
-          version: v1.61
+          version: v2.1.6
           working-directory: ./common
           args: --timeout 5m
       - name: check code integrity
