@@ -39,7 +39,7 @@ var arkRuntimeMetrics = []string{
 	"/gc/heap/frees:bytes",
 }
 
-func initOtelSDK(ctx context.Context, otelCollectorUrl string) (func(context.Context) error, error) {
+func initOtelSDK(ctx context.Context, otelCollectorUrl string, pushInterval time.Duration) (func(context.Context) error, error) {
 	otelCollectorUrl = strings.TrimSuffix(otelCollectorUrl, "/")
 	traceExp, err := traceExport.New(
 		ctx,
@@ -70,7 +70,7 @@ func initOtelSDK(ctx context.Context, otelCollectorUrl string) (func(context.Con
 
 	reader := sdkmetric.NewPeriodicReader(
 		metricExp,
-		sdkmetric.WithInterval(5*time.Second),
+		sdkmetric.WithInterval(pushInterval),
 	)
 
 	mp := sdkmetric.NewMeterProvider(
@@ -109,6 +109,19 @@ func collectGoRuntimeMetrics(ctx context.Context) {
 	samples := make([]metrics.Sample, 0, len(arkRuntimeMetrics))
 	for _, n := range arkRuntimeMetrics {
 		samples = append(samples, metrics.Sample{Name: n})
+	}
+
+	serviceUpGauge, err := m.Int64ObservableGauge(
+		"ark_service_up",
+		metric.WithDescription("1 if arkd service is up"),
+	)
+	if err != nil {
+		log.WithError(err).Error("failed to create ark_service_up gauge")
+	}
+
+	instruments := collectInstruments(inst)
+	if serviceUpGauge != nil {
+		instruments = append(instruments, serviceUpGauge)
 	}
 
 	_, err = m.RegisterCallback(
@@ -156,9 +169,14 @@ func collectGoRuntimeMetrics(ctx context.Context) {
 					}
 				}
 			}
+
+			if serviceUpGauge != nil {
+				obs.ObserveInt64(serviceUpGauge, 1)
+			}
+
 			return nil
 		},
-		collectInstruments(inst)...,
+		instruments...,
 	)
 	if err != nil {
 		return
