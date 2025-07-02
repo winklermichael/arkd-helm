@@ -307,11 +307,12 @@ func (a *grpcClient) GetVtxos(
 	}
 
 	req := &arkv1.GetVtxosRequest{
-		Addresses:     opt.GetAddresses(),
-		Outpoints:     opt.GetOutpoints(),
-		SpendableOnly: opt.GetSpendableOnly(),
-		SpentOnly:     opt.GetSpentOnly(),
-		Page:          page,
+		Scripts:         opt.GetScripts(),
+		Outpoints:       opt.GetOutpoints(),
+		SpendableOnly:   opt.GetSpendableOnly(),
+		SpentOnly:       opt.GetSpentOnly(),
+		RecoverableOnly: opt.GetRecoverableOnly(),
+		Page:            page,
 	}
 
 	resp, err := a.svc.GetVtxos(ctx, req)
@@ -482,12 +483,15 @@ func (a *grpcClient) GetVirtualTxs(
 	}, nil
 }
 
-func (a *grpcClient) GetSweptCommitmentTx(ctx context.Context, txid string) ([]string, error) {
-	req := &arkv1.GetSweptCommitmentTxRequest{
-		Txid: txid,
+func (a *grpcClient) GetBatchSweepTxs(ctx context.Context, batchOutpoint indexer.Outpoint) ([]string, error) {
+	req := &arkv1.GetBatchSweepTransactionsRequest{
+		BatchOutpoint: &arkv1.IndexerOutpoint{
+			Txid: batchOutpoint.Txid,
+			Vout: batchOutpoint.VOut,
+		},
 	}
 
-	resp, err := a.svc.GetSweptCommitmentTx(ctx, req)
+	resp, err := a.svc.GetBatchSweepTransactions(ctx, req)
 	if err != nil {
 		return nil, err
 	}

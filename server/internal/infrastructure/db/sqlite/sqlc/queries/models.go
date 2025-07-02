@@ -49,7 +49,6 @@ type RequestVtxoVw struct {
 	Pubkey       sql.NullString
 	Amount       sql.NullInt64
 	RoundTx      sql.NullString
-	SpentBy      sql.NullString
 	Spent        sql.NullBool
 	Redeemed     sql.NullBool
 	Swept        sql.NullBool
@@ -59,6 +58,7 @@ type RequestVtxoVw struct {
 	SettledBy    sql.NullString
 	Preconfirmed sql.NullBool
 	ArkTxid      sql.NullString
+	SpentBy      sql.NullString
 	Commitments  interface{}
 	ID           sql.NullString
 	RoundID      sql.NullString
@@ -143,7 +143,6 @@ type Vtxo struct {
 	Pubkey       string
 	Amount       int64
 	RoundTx      string
-	SpentBy      string
 	Spent        bool
 	Redeemed     bool
 	Swept        bool
@@ -153,6 +152,7 @@ type Vtxo struct {
 	SettledBy    sql.NullString
 	Preconfirmed bool
 	ArkTxid      sql.NullString
+	SpentBy      sql.NullString
 }
 
 type VtxoCommitmentTxid struct {
@@ -167,7 +167,6 @@ type VtxoVw struct {
 	Pubkey       string
 	Amount       int64
 	RoundTx      string
-	SpentBy      string
 	Spent        bool
 	Redeemed     bool
 	Swept        bool
@@ -177,5 +176,6 @@ type VtxoVw struct {
 	SettledBy    sql.NullString
 	Preconfirmed bool
 	ArkTxid      sql.NullString
+	SpentBy      sql.NullString
 	Commitments  interface{}
 }

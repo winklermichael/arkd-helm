@@ -46,7 +46,7 @@ func (v *vtxoRepository) AddVtxos(ctx context.Context, vtxos []domain.Vtxo) erro
 					Pubkey:         vtxo.PubKey,
 					Amount:         int64(vtxo.Amount),
 					CommitmentTxid: vtxo.RootCommitmentTxid,
-					SpentBy:        vtxo.SpentBy,
+					SpentBy:        sql.NullString{String: vtxo.SpentBy, Valid: len(vtxo.SpentBy) > 0},
 					Spent:          vtxo.Spent,
 					Redeemed:       vtxo.Redeemed,
 					Swept:          vtxo.Swept,
@@ -243,7 +243,7 @@ func (v *vtxoRepository) SettleVtxos(
 			if err := querierWithTx.MarkVtxoAsSettled(
 				ctx,
 				queries.MarkVtxoAsSettledParams{
-					SpentBy:   spentBy,
+					SpentBy:   sql.NullString{String: spentBy, Valid: len(spentBy) > 0},
 					SettledBy: sql.NullString{String: settledBy, Valid: true},
 					Txid:      vtxo.Txid,
 					Vout:      int32(vtxo.VOut),
@@ -267,7 +267,7 @@ func (v *vtxoRepository) SpendVtxos(
 			if err := querierWithTx.MarkVtxoAsSpent(
 				ctx,
 				queries.MarkVtxoAsSpentParams{
-					SpentBy: spentBy,
+					SpentBy: sql.NullString{String: spentBy, Valid: len(spentBy) > 0},
 					ArkTxid: sql.NullString{String: arkTxid, Valid: true},
 					Txid:    vtxo.Txid,
 					Vout:    int32(vtxo.VOut),
@@ -324,12 +324,12 @@ func (v *vtxoRepository) UpdateExpireAt(ctx context.Context, vtxos []domain.Outp
 	return execTx(ctx, v.db, txBody)
 }
 
-func (v *vtxoRepository) GetAllVtxosWithPubKey(
-	ctx context.Context, pubkey string,
-) ([]domain.Vtxo, []domain.Vtxo, error) {
-	res, err := v.querier.SelectVtxosWithPubkey(ctx, pubkey)
+func (v *vtxoRepository) GetAllVtxosWithPubKeys(
+	ctx context.Context, pubkeys []string,
+) ([]domain.Vtxo, error) {
+	res, err := v.querier.SelectVtxosWithPubkeys(ctx, pubkeys)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	rows := make([]queries.VtxoVw, 0, len(res))
 	for _, row := range res {
@@ -338,73 +338,13 @@ func (v *vtxoRepository) GetAllVtxosWithPubKey(
 
 	vtxos, err := readRows(rows)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
+	sort.SliceStable(vtxos, func(i, j int) bool {
+		return vtxos[i].CreatedAt > vtxos[j].CreatedAt
+	})
 
-	unspentVtxos := make([]domain.Vtxo, 0)
-	spentVtxos := make([]domain.Vtxo, 0)
-
-	for _, vtxo := range vtxos {
-		if vtxo.Spent || vtxo.Swept {
-			spentVtxos = append(spentVtxos, vtxo)
-		} else {
-			unspentVtxos = append(unspentVtxos, vtxo)
-		}
-	}
-
-	return unspentVtxos, spentVtxos, nil
-}
-
-func (v *vtxoRepository) GetAllVtxosWithPubKeys(
-	ctx context.Context, pubkeys []string, spendableOnly, spentOnly bool,
-) ([]domain.Vtxo, error) {
-	if spendableOnly && spendableOnly == spentOnly {
-		return nil, fmt.Errorf("spendable and spent only can't be true at the same time")
-	}
-
-	allVtxos := make([]domain.Vtxo, 0)
-	// TODO: make this a proper sql query
-	for _, pubkey := range pubkeys {
-		res, err := v.querier.SelectVtxosWithPubkey(ctx, pubkey)
-		if err != nil {
-			return nil, err
-		}
-		rows := make([]queries.VtxoVw, 0, len(res))
-		for _, row := range res {
-			rows = append(rows, row.VtxoVw)
-		}
-
-		vtxos, err := readRows(rows)
-		if err != nil {
-			return nil, err
-		}
-		sort.SliceStable(vtxos, func(i, j int) bool {
-			return vtxos[i].CreatedAt > vtxos[j].CreatedAt
-		})
-
-		if spendableOnly {
-			spendableVtxos := make([]domain.Vtxo, 0, len(vtxos))
-			for _, vtxo := range vtxos {
-				if !vtxo.Spent && !vtxo.Swept && !vtxo.Redeemed {
-					spendableVtxos = append(spendableVtxos, vtxo)
-				}
-			}
-			vtxos = spendableVtxos
-		}
-		if spentOnly {
-			spentVtxos := make([]domain.Vtxo, 0, len(vtxos))
-			for _, vtxo := range vtxos {
-				if vtxo.Spent || vtxo.Swept || vtxo.Redeemed {
-					spentVtxos = append(spentVtxos, vtxo)
-				}
-			}
-			vtxos = spentVtxos
-		}
-
-		allVtxos = append(allVtxos, vtxos...)
-	}
-
-	return allVtxos, nil
+	return vtxos, nil
 }
 
 func rowToVtxo(row queries.VtxoVw) domain.Vtxo {
@@ -419,7 +359,7 @@ func rowToVtxo(row queries.VtxoVw) domain.Vtxo {
 		CommitmentTxids:    parseCommitments(row.Commitments, []byte(",")),
 		SettledBy:          row.SettledBy.String,
 		ArkTxid:            row.ArkTxid.String,
-		SpentBy:            row.SpentBy,
+		SpentBy:            row.SpentBy.String,
 		Spent:              row.Spent,
 		Redeemed:           row.Redeemed,
 		Swept:              row.Swept,

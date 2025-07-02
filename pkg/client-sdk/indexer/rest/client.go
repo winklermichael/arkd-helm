@@ -312,10 +312,12 @@ func (a *restClient) GetVtxos(
 	opt := opts[0]
 	spentOnly := opt.GetSpentOnly()
 	spendableOnly := opt.GetSpendableOnly()
+	recoverableOnly := opt.GetRecoverableOnly()
 
 	params := indexer_service.NewIndexerServiceGetVtxosParams().
-		WithAddresses(opt.GetAddresses()).WithOutpoints(opt.GetOutpoints()).
-		WithSpentOnly(&spentOnly).WithSpendableOnly(&spendableOnly)
+		WithScripts(opt.GetScripts()).WithOutpoints(opt.GetOutpoints()).
+		WithSpentOnly(&spentOnly).WithSpendableOnly(&spendableOnly).
+		WithRecoverableOnly(&recoverableOnly)
 
 	if page := opt.GetPage(); page != nil {
 		params.WithPageSize(&page.Size).WithPageIndex(&page.Index)
@@ -483,10 +485,11 @@ func (a *restClient) GetVirtualTxs(
 	}, nil
 }
 
-func (a *restClient) GetSweptCommitmentTx(ctx context.Context, txid string) ([]string, error) {
-	params := indexer_service.NewIndexerServiceGetSweptCommitmentTxParams().WithTxid(txid)
+func (a *restClient) GetBatchSweepTxs(ctx context.Context, batchOutpoint indexer.Outpoint) ([]string, error) {
+	params := indexer_service.NewIndexerServiceGetBatchSweepTransactionsParams().
+		WithBatchOutpointTxid(batchOutpoint.Txid).WithBatchOutpointVout(int64(batchOutpoint.VOut))
 
-	resp, err := a.svc.IndexerServiceGetSweptCommitmentTx(params)
+	resp, err := a.svc.IndexerServiceGetBatchSweepTransactions(params)
 	if err != nil {
 		return nil, err
 	}

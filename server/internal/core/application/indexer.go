@@ -32,12 +32,12 @@ type IndexerService interface {
 	GetVtxoTreeLeaves(ctx context.Context, batchOutpoint Outpoint, page *Page) (*VtxoTreeLeavesResp, error)
 	GetForfeitTxs(ctx context.Context, txid string, page *Page) (*ForfeitTxsResp, error)
 	GetConnectors(ctx context.Context, txid string, page *Page) (*ConnectorResp, error)
-	GetVtxos(ctx context.Context, pubkeys []string, spendableOnly, spendOnly bool, page *Page) (*GetVtxosResp, error)
+	GetVtxos(ctx context.Context, pubkeys []string, spendableOnly, spendOnly, recoverableOnly bool, page *Page) (*GetVtxosResp, error)
 	GetVtxosByOutpoint(ctx context.Context, outpoints []Outpoint, page *Page) (*GetVtxosResp, error)
 	GetTransactionHistory(ctx context.Context, pubkey string, start, end int64, page *Page) (*TxHistoryResp, error)
 	GetVtxoChain(ctx context.Context, vtxoKey Outpoint, page *Page) (*VtxoChainResp, error)
 	GetVirtualTxs(ctx context.Context, txids []string, page *Page) (*VirtualTxsResp, error)
-	GetSweptCommitmentTx(ctx context.Context, txid string) (*SweptCommitmentTxResp, error)
+	GetBatchSweepTxs(ctx context.Context, batchOutpoint Outpoint) ([]string, error)
 }
 
 type indexerService struct {
@@ -162,17 +162,43 @@ func (i *indexerService) GetConnectors(ctx context.Context, txid string, page *P
 }
 
 func (i *indexerService) GetVtxos(
-	ctx context.Context, pubkeys []string, spendableOnly, spentOnly bool, page *Page,
+	ctx context.Context, pubkeys []string, spendableOnly, spentOnly, recoverableOnly bool, page *Page,
 ) (*GetVtxosResp, error) {
-	if spendableOnly && spentOnly {
-		return nil, fmt.Errorf("spendable and spent only can't be true at the same time")
+	if (spendableOnly && spentOnly) || (spendableOnly && recoverableOnly) || (spentOnly && recoverableOnly) {
+		return nil, fmt.Errorf("spendable, spent and recoverable filters are mutually exclusive")
 	}
 
-	vtxos, err := i.repoManager.Vtxos().GetAllVtxosWithPubKeys(
-		ctx, pubkeys, spendableOnly, spentOnly,
-	)
+	vtxos, err := i.repoManager.Vtxos().GetAllVtxosWithPubKeys(ctx, pubkeys)
 	if err != nil {
 		return nil, err
+	}
+
+	if spendableOnly {
+		spendableVtxos := make([]domain.Vtxo, 0, len(vtxos))
+		for _, vtxo := range vtxos {
+			if !vtxo.Spent && !vtxo.Swept && !vtxo.Redeemed {
+				spendableVtxos = append(spendableVtxos, vtxo)
+			}
+		}
+		vtxos = spendableVtxos
+	}
+	if spentOnly {
+		spentVtxos := make([]domain.Vtxo, 0, len(vtxos))
+		for _, vtxo := range vtxos {
+			if vtxo.Spent || vtxo.Swept || vtxo.Redeemed {
+				spentVtxos = append(spentVtxos, vtxo)
+			}
+		}
+		vtxos = spentVtxos
+	}
+	if recoverableOnly {
+		recoverableVtxos := make([]domain.Vtxo, 0, len(vtxos))
+		for _, vtxo := range vtxos {
+			if !vtxo.RequiresForfeit() {
+				recoverableVtxos = append(recoverableVtxos, vtxo)
+			}
+		}
+		vtxos = recoverableVtxos
 	}
 
 	pagedVtxos, pageResp := paginate(vtxos, page, maxPageSizeSpendableVtxos)
@@ -202,9 +228,19 @@ func (i *indexerService) GetVtxosByOutpoint(
 func (i *indexerService) GetTransactionHistory(
 	ctx context.Context, pubkey string, start, end int64, page *Page,
 ) (*TxHistoryResp, error) {
-	spendable, spent, err := i.repoManager.Vtxos().GetAllVtxosWithPubKey(ctx, pubkey)
+	vtxos, err := i.repoManager.Vtxos().GetAllVtxosWithPubKeys(ctx, []string{pubkey})
 	if err != nil {
 		return nil, err
+	}
+
+	spendable := make([]domain.Vtxo, 0, len(vtxos))
+	spent := make([]domain.Vtxo, 0, len(vtxos))
+	for _, vtxo := range vtxos {
+		if vtxo.Spent || vtxo.Swept || vtxo.Redeemed {
+			spent = append(spent, vtxo)
+		} else {
+			spendable = append(spendable, vtxo)
+		}
 	}
 
 	var roundTxids map[string]any
@@ -407,11 +443,18 @@ func (i *indexerService) GetVirtualTxs(ctx context.Context, txids []string, page
 	}, nil
 }
 
-func (i *indexerService) GetSweptCommitmentTx(ctx context.Context, txid string) (*SweptCommitmentTxResp, error) {
-	// TODO currently not possible to find swept commitment tx, we need either to scan explorer which would be inefficient
-	// or to store sweep txs it in the database
+func (i *indexerService) GetBatchSweepTxs(ctx context.Context, batchOutpoint Outpoint) ([]string, error) {
+	round, err := i.repoManager.Rounds().GetRoundWithId(ctx, batchOutpoint.Txid) //TODO repo methods needs to be updated with multiple batches in future
+	if err != nil {
+		return nil, err
+	}
 
-	return &SweptCommitmentTxResp{}, nil
+	txids := make([]string, 0, len(round.SweepTxs))
+	for txid := range round.SweepTxs {
+		txids = append(txids, txid)
+	}
+
+	return txids, nil
 }
 
 func paginate[T any](items []T, params *Page, maxSize int32) ([]T, PageResp) {

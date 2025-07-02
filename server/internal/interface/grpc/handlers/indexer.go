@@ -225,9 +225,13 @@ func (e *indexerService) GetVtxos(ctx context.Context, request *arkv1.GetVtxosRe
 	if request.GetSpendableOnly() && request.GetSpentOnly() {
 		return nil, status.Error(codes.InvalidArgument, "spendable and spent filters are mutually exclusive")
 	}
-	pubkeys, err := parseArkAddresses(request.GetAddresses())
-	if err != nil {
-		return nil, status.Error(codes.InvalidArgument, err.Error())
+	pubkeys := make([]string, 0, len(request.GetScripts()))
+	for _, script := range request.GetScripts() {
+		script, err := parseScript(script)
+		if err != nil {
+			return nil, status.Error(codes.InvalidArgument, err.Error())
+		}
+		pubkeys = append(pubkeys, script[4:])
 	}
 	outpoints, err := parseOutpoints(request.GetOutpoints())
 	if err != nil {
@@ -238,13 +242,21 @@ func (e *indexerService) GetVtxos(ctx context.Context, request *arkv1.GetVtxosRe
 		return nil, status.Error(codes.InvalidArgument, "missing outpoints or addresses filter")
 	}
 	if len(outpoints) > 0 && len(pubkeys) > 0 {
-		return nil, status.Error(codes.InvalidArgument, "outpoints and addresses filters are mutually exclusive")
+		return nil, status.Error(codes.InvalidArgument, "outpoints and scripts filters are mutually exclusive")
+	}
+	spendableOnly := request.GetSpendableOnly()
+	spentOnly := request.GetSpentOnly()
+	recoverableOnly := request.GetRecoverableOnly()
+	if len(pubkeys) > 0 {
+		if (spendableOnly && spentOnly) || (spendableOnly && recoverableOnly) || (spentOnly && recoverableOnly) {
+			return nil, status.Error(codes.InvalidArgument, "spendable, spent and recoverable filters are mutually exclusive")
+		}
 	}
 
 	var resp *application.GetVtxosResp
 	if len(pubkeys) > 0 {
 		resp, err = e.indexerSvc.GetVtxos(
-			ctx, pubkeys, request.GetSpendableOnly(), request.GetSpentOnly(), page,
+			ctx, pubkeys, spendableOnly, spentOnly, recoverableOnly, page,
 		)
 	}
 	if len(outpoints) > 0 {
@@ -382,19 +394,19 @@ func (e *indexerService) GetVirtualTxs(ctx context.Context, request *arkv1.GetVi
 	}, nil
 }
 
-func (e *indexerService) GetSweptCommitmentTx(ctx context.Context, request *arkv1.GetSweptCommitmentTxRequest) (*arkv1.GetSweptCommitmentTxResponse, error) {
-	txid, err := parseTxid(request.GetTxid())
+func (e *indexerService) GetBatchSweepTransactions(ctx context.Context, request *arkv1.GetBatchSweepTransactionsRequest) (*arkv1.GetBatchSweepTransactionsResponse, error) {
+	outpoint, err := parseOutpoint(request.GetBatchOutpoint())
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	resp, err := e.indexerSvc.GetSweptCommitmentTx(ctx, txid)
+	sweepTxs, err := e.indexerSvc.GetBatchSweepTxs(ctx, *outpoint)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to get swept commitment tx: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to get sweep txs for batch %s: %v", outpoint, err)
 	}
 
-	return &arkv1.GetSweptCommitmentTxResponse{
-		SweptBy: resp.SweptBy,
+	return &arkv1.GetBatchSweepTransactionsResponse{
+		SweptBy: sweepTxs,
 	}, nil
 }
 
@@ -633,18 +645,6 @@ func protoPage(page application.PageResp) *arkv1.IndexerPageResponse {
 		Next:    page.Next,
 		Total:   page.Total,
 	}
-}
-
-func parseArkAddresses(addresses []string) ([]string, error) {
-	pubkeys := make([]string, 0, len(addresses))
-	for _, address := range addresses {
-		pubkey, err := parseArkAddress(address)
-		if err != nil {
-			return nil, err
-		}
-		pubkeys = append(pubkeys, pubkey)
-	}
-	return pubkeys, nil
 }
 
 func parseScripts(scripts []string) ([]string, error) {

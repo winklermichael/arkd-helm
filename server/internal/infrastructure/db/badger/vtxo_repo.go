@@ -200,34 +200,9 @@ func (r *vtxoRepository) UpdateExpireAt(ctx context.Context, vtxos []domain.Outp
 	return err
 }
 
-func (r *vtxoRepository) GetAllVtxosWithPubKey(
-	ctx context.Context, pubkey string,
-) ([]domain.Vtxo, []domain.Vtxo, error) {
-	query := badgerhold.Where("PubKey").Eq(pubkey)
-	vtxos, err := r.findVtxos(ctx, query)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	spentVtxos := make([]domain.Vtxo, 0, len(vtxos))
-	unspentVtxos := make([]domain.Vtxo, 0, len(vtxos))
-	for _, vtxo := range vtxos {
-		if vtxo.Spent || vtxo.Swept {
-			spentVtxos = append(spentVtxos, vtxo)
-		} else {
-			unspentVtxos = append(unspentVtxos, vtxo)
-		}
-	}
-	return unspentVtxos, spentVtxos, nil
-}
-
 func (r *vtxoRepository) GetAllVtxosWithPubKeys(
-	ctx context.Context, pubkeys []string, spendableOnly, spentOnly bool,
+	ctx context.Context, pubkeys []string,
 ) ([]domain.Vtxo, error) {
-	if spendableOnly && spendableOnly == spentOnly {
-		return nil, fmt.Errorf("spendable and spent only can't be true at the same time")
-	}
-
 	allVtxos := make([]domain.Vtxo, 0)
 	for _, pubkey := range pubkeys {
 		query := badgerhold.Where("PubKey").Eq(pubkey)
@@ -239,24 +214,6 @@ func (r *vtxoRepository) GetAllVtxosWithPubKeys(
 			return vtxos[i].CreatedAt > vtxos[j].CreatedAt
 		})
 
-		if spendableOnly {
-			spendableVtxos := make([]domain.Vtxo, 0, len(vtxos))
-			for _, vtxo := range vtxos {
-				if !vtxo.Spent && !vtxo.Swept && !vtxo.Redeemed {
-					spendableVtxos = append(spendableVtxos, vtxo)
-				}
-			}
-			vtxos = spendableVtxos
-		}
-		if spentOnly {
-			spentVtxos := make([]domain.Vtxo, 0, len(vtxos))
-			for _, vtxo := range vtxos {
-				if vtxo.Spent || vtxo.Swept || vtxo.Redeemed {
-					spentVtxos = append(spentVtxos, vtxo)
-				}
-			}
-			vtxos = spentVtxos
-		}
 		allVtxos = append(allVtxos, vtxos...)
 	}
 	return allVtxos, nil
