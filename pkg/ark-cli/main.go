@@ -393,11 +393,11 @@ func redeem(ctx *cli.Context) error {
 	}
 
 	if force {
-		return arkSdkClient.StartUnilateralExit(ctx.Context)
+		return arkSdkClient.Unroll(ctx.Context)
 	}
 
 	if complete {
-		txID, err := arkSdkClient.CompleteUnilateralExit(ctx.Context, address)
+		txID, err := arkSdkClient.CompleteUnroll(ctx.Context, address)
 		if err != nil {
 			return err
 		}
