@@ -18,20 +18,56 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type IndexerServiceClient interface {
+	// GetCommitmentTx returns information about a specific commitment transaction identified by the
+	// provided txid.
 	GetCommitmentTx(ctx context.Context, in *GetCommitmentTxRequest, opts ...grpc.CallOption) (*GetCommitmentTxResponse, error)
+	// GetForfeitTxs returns the list of forfeit transactions that were submitted for the provided
+	// commitment transaction.
+	// The response may include pagination information if the results span multiple pages.
 	GetForfeitTxs(ctx context.Context, in *GetForfeitTxsRequest, opts ...grpc.CallOption) (*GetForfeitTxsResponse, error)
+	// GetConnectors returns the tree of connectors for the provided commitment transaction.
+	// The response includes a list of connector txs with details on the tree posistion and may
+	// include pagination information if the results span multiple pages.
 	GetConnectors(ctx context.Context, in *GetConnectorsRequest, opts ...grpc.CallOption) (*GetConnectorsResponse, error)
-	GetCommitmentTxLeaves(ctx context.Context, in *GetCommitmentTxLeavesRequest, opts ...grpc.CallOption) (*GetCommitmentTxLeavesResponse, error)
+	// GetVtxoTree returns the vtxo tree for the provided batch outpoint.
+	// The response includes a list of txs with details on the tree posistion and may
+	// include pagination information if the results span multiple pages.
 	GetVtxoTree(ctx context.Context, in *GetVtxoTreeRequest, opts ...grpc.CallOption) (*GetVtxoTreeResponse, error)
+	// GetVtxoTreeLeaves returns the list of leaves (vtxo outpoints) of the tree(s) for the
+	// provided batch outpoint.
+	// The response may be paginated if the results span multiple pages.
 	GetVtxoTreeLeaves(ctx context.Context, in *GetVtxoTreeLeavesRequest, opts ...grpc.CallOption) (*GetVtxoTreeLeavesResponse, error)
+	// GetVtxos returns the list of vtxos based on the provided filter. Vtxos can be retrieved either
+	// by addresses or by outpoints, and optionally filtered by spendable or spent only.
+	// The response may be paginated if the results span multiple pages.
 	GetVtxos(ctx context.Context, in *GetVtxosRequest, opts ...grpc.CallOption) (*GetVtxosResponse, error)
-	GetVtxosByOutpoint(ctx context.Context, in *GetVtxosByOutpointRequest, opts ...grpc.CallOption) (*GetVtxosByOutpointResponse, error)
-	GetTransactionHistory(ctx context.Context, in *GetTransactionHistoryRequest, opts ...grpc.CallOption) (*GetTransactionHistoryResponse, error)
+	// GetVtxoChain returns the the chain of ark txs that starts from spending any vtxo leaf and ends
+	// with the creation of the provided vtxo outpoint.
+	// The response may be paginated if the results span multiple pages.
 	GetVtxoChain(ctx context.Context, in *GetVtxoChainRequest, opts ...grpc.CallOption) (*GetVtxoChainResponse, error)
+	// GetVirtualTxs returns the virtual transactions in hex format for the specified txids.
+	// The response may be paginated if the results span multiple pages.
 	GetVirtualTxs(ctx context.Context, in *GetVirtualTxsRequest, opts ...grpc.CallOption) (*GetVirtualTxsResponse, error)
-	GetSweptCommitmentTx(ctx context.Context, in *GetSweptCommitmentTxRequest, opts ...grpc.CallOption) (*GetSweptCommitmentTxResponse, error)
+	// GetBatchSweepTransactions returns the list of transaction (txid) that swept a given batch
+	// output.
+	// In most cases the list contains only one txid, meaning that all the amount locked for a
+	// vtxo tree has been claimed back.
+	// If any of the leaves of the tree have been unrolled onchain before the expiration, the
+	// list will contain many txids instead.
+	// In a binary tree with 4 or more leaves, 1 unroll causes the server to broadcast 3 txs to sweep
+	// the whole rest of tree for example.
+	// If a whole vtxo tree has been unrolled onchain, the list of txids for that batch output is
+	// empty.
+	GetBatchSweepTransactions(ctx context.Context, in *GetBatchSweepTransactionsRequest, opts ...grpc.CallOption) (*GetBatchSweepTransactionsResponse, error)
+	// SubscribeForScripts allows to subscribe for tx notifications related to the provided vtxo
+	// scripts. It can also be used to update an existing subscribtion by adding new scripts to it.
 	SubscribeForScripts(ctx context.Context, in *SubscribeForScriptsRequest, opts ...grpc.CallOption) (*SubscribeForScriptsResponse, error)
+	// UnsubscribeForScripts allows to remove scripts from an existing subscription.
 	UnsubscribeForScripts(ctx context.Context, in *UnsubscribeForScriptsRequest, opts ...grpc.CallOption) (*UnsubscribeForScriptsResponse, error)
+	// GetSubscription is a server-side streaming RPC which allows clients to receive real-time
+	// notifications on transactions related to the subscribed vtxo scripts.
+	// The subscription can be created or updated by using the SubscribeForScripts and
+	// UnsubscribeForScripts RPCs.
 	GetSubscription(ctx context.Context, in *GetSubscriptionRequest, opts ...grpc.CallOption) (IndexerService_GetSubscriptionClient, error)
 }
 
@@ -70,15 +106,6 @@ func (c *indexerServiceClient) GetConnectors(ctx context.Context, in *GetConnect
 	return out, nil
 }
 
-func (c *indexerServiceClient) GetCommitmentTxLeaves(ctx context.Context, in *GetCommitmentTxLeavesRequest, opts ...grpc.CallOption) (*GetCommitmentTxLeavesResponse, error) {
-	out := new(GetCommitmentTxLeavesResponse)
-	err := c.cc.Invoke(ctx, "/ark.v1.IndexerService/GetCommitmentTxLeaves", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *indexerServiceClient) GetVtxoTree(ctx context.Context, in *GetVtxoTreeRequest, opts ...grpc.CallOption) (*GetVtxoTreeResponse, error) {
 	out := new(GetVtxoTreeResponse)
 	err := c.cc.Invoke(ctx, "/ark.v1.IndexerService/GetVtxoTree", in, out, opts...)
@@ -106,24 +133,6 @@ func (c *indexerServiceClient) GetVtxos(ctx context.Context, in *GetVtxosRequest
 	return out, nil
 }
 
-func (c *indexerServiceClient) GetVtxosByOutpoint(ctx context.Context, in *GetVtxosByOutpointRequest, opts ...grpc.CallOption) (*GetVtxosByOutpointResponse, error) {
-	out := new(GetVtxosByOutpointResponse)
-	err := c.cc.Invoke(ctx, "/ark.v1.IndexerService/GetVtxosByOutpoint", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *indexerServiceClient) GetTransactionHistory(ctx context.Context, in *GetTransactionHistoryRequest, opts ...grpc.CallOption) (*GetTransactionHistoryResponse, error) {
-	out := new(GetTransactionHistoryResponse)
-	err := c.cc.Invoke(ctx, "/ark.v1.IndexerService/GetTransactionHistory", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *indexerServiceClient) GetVtxoChain(ctx context.Context, in *GetVtxoChainRequest, opts ...grpc.CallOption) (*GetVtxoChainResponse, error) {
 	out := new(GetVtxoChainResponse)
 	err := c.cc.Invoke(ctx, "/ark.v1.IndexerService/GetVtxoChain", in, out, opts...)
@@ -142,9 +151,9 @@ func (c *indexerServiceClient) GetVirtualTxs(ctx context.Context, in *GetVirtual
 	return out, nil
 }
 
-func (c *indexerServiceClient) GetSweptCommitmentTx(ctx context.Context, in *GetSweptCommitmentTxRequest, opts ...grpc.CallOption) (*GetSweptCommitmentTxResponse, error) {
-	out := new(GetSweptCommitmentTxResponse)
-	err := c.cc.Invoke(ctx, "/ark.v1.IndexerService/GetSweptCommitmentTx", in, out, opts...)
+func (c *indexerServiceClient) GetBatchSweepTransactions(ctx context.Context, in *GetBatchSweepTransactionsRequest, opts ...grpc.CallOption) (*GetBatchSweepTransactionsResponse, error) {
+	out := new(GetBatchSweepTransactionsResponse)
+	err := c.cc.Invoke(ctx, "/ark.v1.IndexerService/GetBatchSweepTransactions", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -205,20 +214,56 @@ func (x *indexerServiceGetSubscriptionClient) Recv() (*GetSubscriptionResponse, 
 // All implementations should embed UnimplementedIndexerServiceServer
 // for forward compatibility
 type IndexerServiceServer interface {
+	// GetCommitmentTx returns information about a specific commitment transaction identified by the
+	// provided txid.
 	GetCommitmentTx(context.Context, *GetCommitmentTxRequest) (*GetCommitmentTxResponse, error)
+	// GetForfeitTxs returns the list of forfeit transactions that were submitted for the provided
+	// commitment transaction.
+	// The response may include pagination information if the results span multiple pages.
 	GetForfeitTxs(context.Context, *GetForfeitTxsRequest) (*GetForfeitTxsResponse, error)
+	// GetConnectors returns the tree of connectors for the provided commitment transaction.
+	// The response includes a list of connector txs with details on the tree posistion and may
+	// include pagination information if the results span multiple pages.
 	GetConnectors(context.Context, *GetConnectorsRequest) (*GetConnectorsResponse, error)
-	GetCommitmentTxLeaves(context.Context, *GetCommitmentTxLeavesRequest) (*GetCommitmentTxLeavesResponse, error)
+	// GetVtxoTree returns the vtxo tree for the provided batch outpoint.
+	// The response includes a list of txs with details on the tree posistion and may
+	// include pagination information if the results span multiple pages.
 	GetVtxoTree(context.Context, *GetVtxoTreeRequest) (*GetVtxoTreeResponse, error)
+	// GetVtxoTreeLeaves returns the list of leaves (vtxo outpoints) of the tree(s) for the
+	// provided batch outpoint.
+	// The response may be paginated if the results span multiple pages.
 	GetVtxoTreeLeaves(context.Context, *GetVtxoTreeLeavesRequest) (*GetVtxoTreeLeavesResponse, error)
+	// GetVtxos returns the list of vtxos based on the provided filter. Vtxos can be retrieved either
+	// by addresses or by outpoints, and optionally filtered by spendable or spent only.
+	// The response may be paginated if the results span multiple pages.
 	GetVtxos(context.Context, *GetVtxosRequest) (*GetVtxosResponse, error)
-	GetVtxosByOutpoint(context.Context, *GetVtxosByOutpointRequest) (*GetVtxosByOutpointResponse, error)
-	GetTransactionHistory(context.Context, *GetTransactionHistoryRequest) (*GetTransactionHistoryResponse, error)
+	// GetVtxoChain returns the the chain of ark txs that starts from spending any vtxo leaf and ends
+	// with the creation of the provided vtxo outpoint.
+	// The response may be paginated if the results span multiple pages.
 	GetVtxoChain(context.Context, *GetVtxoChainRequest) (*GetVtxoChainResponse, error)
+	// GetVirtualTxs returns the virtual transactions in hex format for the specified txids.
+	// The response may be paginated if the results span multiple pages.
 	GetVirtualTxs(context.Context, *GetVirtualTxsRequest) (*GetVirtualTxsResponse, error)
-	GetSweptCommitmentTx(context.Context, *GetSweptCommitmentTxRequest) (*GetSweptCommitmentTxResponse, error)
+	// GetBatchSweepTransactions returns the list of transaction (txid) that swept a given batch
+	// output.
+	// In most cases the list contains only one txid, meaning that all the amount locked for a
+	// vtxo tree has been claimed back.
+	// If any of the leaves of the tree have been unrolled onchain before the expiration, the
+	// list will contain many txids instead.
+	// In a binary tree with 4 or more leaves, 1 unroll causes the server to broadcast 3 txs to sweep
+	// the whole rest of tree for example.
+	// If a whole vtxo tree has been unrolled onchain, the list of txids for that batch output is
+	// empty.
+	GetBatchSweepTransactions(context.Context, *GetBatchSweepTransactionsRequest) (*GetBatchSweepTransactionsResponse, error)
+	// SubscribeForScripts allows to subscribe for tx notifications related to the provided vtxo
+	// scripts. It can also be used to update an existing subscribtion by adding new scripts to it.
 	SubscribeForScripts(context.Context, *SubscribeForScriptsRequest) (*SubscribeForScriptsResponse, error)
+	// UnsubscribeForScripts allows to remove scripts from an existing subscription.
 	UnsubscribeForScripts(context.Context, *UnsubscribeForScriptsRequest) (*UnsubscribeForScriptsResponse, error)
+	// GetSubscription is a server-side streaming RPC which allows clients to receive real-time
+	// notifications on transactions related to the subscribed vtxo scripts.
+	// The subscription can be created or updated by using the SubscribeForScripts and
+	// UnsubscribeForScripts RPCs.
 	GetSubscription(*GetSubscriptionRequest, IndexerService_GetSubscriptionServer) error
 }
 
@@ -235,9 +280,6 @@ func (UnimplementedIndexerServiceServer) GetForfeitTxs(context.Context, *GetForf
 func (UnimplementedIndexerServiceServer) GetConnectors(context.Context, *GetConnectorsRequest) (*GetConnectorsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetConnectors not implemented")
 }
-func (UnimplementedIndexerServiceServer) GetCommitmentTxLeaves(context.Context, *GetCommitmentTxLeavesRequest) (*GetCommitmentTxLeavesResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetCommitmentTxLeaves not implemented")
-}
 func (UnimplementedIndexerServiceServer) GetVtxoTree(context.Context, *GetVtxoTreeRequest) (*GetVtxoTreeResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetVtxoTree not implemented")
 }
@@ -247,20 +289,14 @@ func (UnimplementedIndexerServiceServer) GetVtxoTreeLeaves(context.Context, *Get
 func (UnimplementedIndexerServiceServer) GetVtxos(context.Context, *GetVtxosRequest) (*GetVtxosResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetVtxos not implemented")
 }
-func (UnimplementedIndexerServiceServer) GetVtxosByOutpoint(context.Context, *GetVtxosByOutpointRequest) (*GetVtxosByOutpointResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetVtxosByOutpoint not implemented")
-}
-func (UnimplementedIndexerServiceServer) GetTransactionHistory(context.Context, *GetTransactionHistoryRequest) (*GetTransactionHistoryResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetTransactionHistory not implemented")
-}
 func (UnimplementedIndexerServiceServer) GetVtxoChain(context.Context, *GetVtxoChainRequest) (*GetVtxoChainResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetVtxoChain not implemented")
 }
 func (UnimplementedIndexerServiceServer) GetVirtualTxs(context.Context, *GetVirtualTxsRequest) (*GetVirtualTxsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetVirtualTxs not implemented")
 }
-func (UnimplementedIndexerServiceServer) GetSweptCommitmentTx(context.Context, *GetSweptCommitmentTxRequest) (*GetSweptCommitmentTxResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetSweptCommitmentTx not implemented")
+func (UnimplementedIndexerServiceServer) GetBatchSweepTransactions(context.Context, *GetBatchSweepTransactionsRequest) (*GetBatchSweepTransactionsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetBatchSweepTransactions not implemented")
 }
 func (UnimplementedIndexerServiceServer) SubscribeForScripts(context.Context, *SubscribeForScriptsRequest) (*SubscribeForScriptsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SubscribeForScripts not implemented")
@@ -337,24 +373,6 @@ func _IndexerService_GetConnectors_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
-func _IndexerService_GetCommitmentTxLeaves_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetCommitmentTxLeavesRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(IndexerServiceServer).GetCommitmentTxLeaves(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/ark.v1.IndexerService/GetCommitmentTxLeaves",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(IndexerServiceServer).GetCommitmentTxLeaves(ctx, req.(*GetCommitmentTxLeavesRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _IndexerService_GetVtxoTree_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetVtxoTreeRequest)
 	if err := dec(in); err != nil {
@@ -409,42 +427,6 @@ func _IndexerService_GetVtxos_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
-func _IndexerService_GetVtxosByOutpoint_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetVtxosByOutpointRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(IndexerServiceServer).GetVtxosByOutpoint(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/ark.v1.IndexerService/GetVtxosByOutpoint",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(IndexerServiceServer).GetVtxosByOutpoint(ctx, req.(*GetVtxosByOutpointRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _IndexerService_GetTransactionHistory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetTransactionHistoryRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(IndexerServiceServer).GetTransactionHistory(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/ark.v1.IndexerService/GetTransactionHistory",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(IndexerServiceServer).GetTransactionHistory(ctx, req.(*GetTransactionHistoryRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _IndexerService_GetVtxoChain_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetVtxoChainRequest)
 	if err := dec(in); err != nil {
@@ -481,20 +463,20 @@ func _IndexerService_GetVirtualTxs_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
-func _IndexerService_GetSweptCommitmentTx_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetSweptCommitmentTxRequest)
+func _IndexerService_GetBatchSweepTransactions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetBatchSweepTransactionsRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(IndexerServiceServer).GetSweptCommitmentTx(ctx, in)
+		return srv.(IndexerServiceServer).GetBatchSweepTransactions(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/ark.v1.IndexerService/GetSweptCommitmentTx",
+		FullMethod: "/ark.v1.IndexerService/GetBatchSweepTransactions",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(IndexerServiceServer).GetSweptCommitmentTx(ctx, req.(*GetSweptCommitmentTxRequest))
+		return srv.(IndexerServiceServer).GetBatchSweepTransactions(ctx, req.(*GetBatchSweepTransactionsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -576,10 +558,6 @@ var IndexerService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _IndexerService_GetConnectors_Handler,
 		},
 		{
-			MethodName: "GetCommitmentTxLeaves",
-			Handler:    _IndexerService_GetCommitmentTxLeaves_Handler,
-		},
-		{
 			MethodName: "GetVtxoTree",
 			Handler:    _IndexerService_GetVtxoTree_Handler,
 		},
@@ -592,14 +570,6 @@ var IndexerService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _IndexerService_GetVtxos_Handler,
 		},
 		{
-			MethodName: "GetVtxosByOutpoint",
-			Handler:    _IndexerService_GetVtxosByOutpoint_Handler,
-		},
-		{
-			MethodName: "GetTransactionHistory",
-			Handler:    _IndexerService_GetTransactionHistory_Handler,
-		},
-		{
 			MethodName: "GetVtxoChain",
 			Handler:    _IndexerService_GetVtxoChain_Handler,
 		},
@@ -608,8 +578,8 @@ var IndexerService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _IndexerService_GetVirtualTxs_Handler,
 		},
 		{
-			MethodName: "GetSweptCommitmentTx",
-			Handler:    _IndexerService_GetSweptCommitmentTx_Handler,
+			MethodName: "GetBatchSweepTransactions",
+			Handler:    _IndexerService_GetBatchSweepTransactions_Handler,
 		},
 		{
 			MethodName: "SubscribeForScripts",
