@@ -35,4 +35,5 @@ jobs:
           echo "=== End Arkd Logs ==="
       
       - name: Tear down
+        if: always()
         run: make docker-stop

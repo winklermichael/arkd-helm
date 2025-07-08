@@ -12,6 +12,7 @@ import (
 
 	"github.com/arkade-os/arkd/pkg/ark-lib/script"
 	"github.com/arkade-os/arkd/pkg/ark-lib/txutils"
+	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcec/v2/schnorr"
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/btcutil/psbt"
@@ -26,7 +27,6 @@ import (
 	"github.com/btcsuite/btcwallet/walletdb"
 	_ "github.com/btcsuite/btcwallet/walletdb/bdb"
 	"github.com/btcsuite/btcwallet/wtxmgr"
-	"github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/lightningnetwork/lnd/blockcache"
 	"github.com/lightningnetwork/lnd/input"
 	"github.com/lightningnetwork/lnd/lntypes"
@@ -297,7 +297,7 @@ func (s *service) DeriveConnectorAddress(_ context.Context) (string, error) {
 	return addr.EncodeAddress(), nil
 }
 
-func (s *service) GetPubkey(_ context.Context) (*secp256k1.PublicKey, error) {
+func (s *service) GetPubkey(_ context.Context) (*btcec.PublicKey, error) {
 	if !s.isLoaded() {
 		return nil, ErrNotLoaded
 	}

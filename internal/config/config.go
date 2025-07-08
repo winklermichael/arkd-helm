@@ -136,8 +136,8 @@ var (
 	Port                      = "PORT"
 	EventDbType               = "EVENT_DB_TYPE"
 	DbType                    = "DB_TYPE"
-	DbUrl                     = "DB_URL"
-	EventDbUrl                = "EVENT_DB_URL"
+	DbUrl                     = "PG_DB_URL"
+	EventDbUrl                = "PG_EVENT_DB_URL"
 	SchedulerType             = "SCHEDULER_TYPE"
 	TxBuilderType             = "TX_BUILDER_TYPE"
 	LiveStoreType             = "LIVE_STORE_TYPE"
@@ -227,7 +227,7 @@ func LoadConfig() (*Config, error) {
 	viper.SetDefault(OtelPushInterval, defaultOtelPushInterval)
 
 	if err := initDatadir(); err != nil {
-		return nil, fmt.Errorf("error while creating datadir: %s", err)
+		return nil, fmt.Errorf("failed to create datadir: %s", err)
 	}
 
 	dbPath := filepath.Join(viper.GetString(Datadir), "db")
@@ -236,7 +236,7 @@ func LoadConfig() (*Config, error) {
 	if viper.GetString(EventDbType) == "postgres" {
 		eventDbUrl = viper.GetString(EventDbUrl)
 		if eventDbUrl == "" {
-			return nil, fmt.Errorf("EVENT_DB_URL not provided")
+			return nil, fmt.Errorf("event db type set to 'postgres' but event db url is missing")
 		}
 	}
 
@@ -244,7 +244,7 @@ func LoadConfig() (*Config, error) {
 	if viper.GetString(DbType) == "postgres" {
 		dbUrl = viper.GetString(DbUrl)
 		if dbUrl == "" {
-			return nil, fmt.Errorf("DB_URL not provided")
+			return nil, fmt.Errorf("db type set to 'postgres' but db url is missing")
 		}
 	}
 
@@ -252,7 +252,7 @@ func LoadConfig() (*Config, error) {
 	if viper.GetString(LiveStoreType) == "redis" {
 		redisUrl = viper.GetString(RedisUrl)
 		if redisUrl == "" {
-			return nil, fmt.Errorf("REDIS_URL not provided")
+			return nil, fmt.Errorf("live store type set to 'redis' but redis url is missing")
 		}
 	}
 
@@ -416,6 +416,10 @@ func (c *Config) Validate() error {
 			"boarding exit delay must be a multiple of %d, rounded to %d",
 			minAllowedSequence, c.BoardingExitDelay,
 		)
+	}
+
+	if c.UnilateralExitDelay == c.BoardingExitDelay {
+		return fmt.Errorf("unilateral exit delay and boarding exit delay must be different")
 	}
 
 	if c.VtxoMinAmount == 0 {

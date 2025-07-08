@@ -185,55 +185,20 @@ func newBoardingInput(
 }
 
 func calcNextMarketHour(
-	marketHourStartTime, marketHourEndTime time.Time,
-	period, marketHourDelta time.Duration, now time.Time,
-) (time.Time, time.Time, error) {
-	// Validate input parameters
-	if period <= 0 {
-		return time.Time{}, time.Time{}, fmt.Errorf("period must be greater than 0")
-	}
-	if !marketHourEndTime.After(marketHourStartTime) {
-		return time.Time{}, time.Time{}, fmt.Errorf(
-			"market hour end time must be after start time",
-		)
-	}
-
-	// Calculate the duration of the market hour
-	duration := marketHourEndTime.Sub(marketHourStartTime)
-
+	now, marketHourStartTime, marketHourEndTime time.Time, period time.Duration,
+) (time.Time, time.Time) {
 	// Calculate the number of periods since the initial marketHourStartTime
-	elapsed := now.Sub(marketHourStartTime)
+	elapsed := now.Sub(marketHourEndTime)
 	var n int64
 	if elapsed >= 0 {
-		n = int64(elapsed / period)
-	} else {
-		n = int64((elapsed - period + 1) / period)
+		n = int64(elapsed/period) + 1
 	}
 
-	// Calculate the current market hour start and end times
-	currentStartTime := marketHourStartTime.Add(time.Duration(n) * period)
-	currentEndTime := currentStartTime.Add(duration)
+	// Calculate the next market hour start and end timestamps
+	nextStartTime := marketHourStartTime.Add(time.Duration(n) * period)
+	nextEndTime := marketHourEndTime.Add(time.Duration(n) * period)
 
-	// Adjust if now is before the currentStartTime
-	if now.Before(currentStartTime) {
-		n -= 1
-		currentStartTime = marketHourStartTime.Add(time.Duration(n) * period)
-		currentEndTime = currentStartTime.Add(duration)
-	}
-
-	timeUntilEnd := currentEndTime.Sub(now)
-
-	if !now.Before(currentStartTime) && now.Before(currentEndTime) &&
-		timeUntilEnd >= marketHourDelta {
-		// Return the current market hour
-		return currentStartTime, currentEndTime, nil
-	} else {
-		// Move to the next market hour
-		n += 1
-		nextStartTime := marketHourStartTime.Add(time.Duration(n) * period)
-		nextEndTime := nextStartTime.Add(duration)
-		return nextStartTime, nextEndTime, nil
-	}
+	return nextStartTime, nextEndTime
 }
 
 func getNewVtxosFromRound(round *domain.Round) []domain.Vtxo {

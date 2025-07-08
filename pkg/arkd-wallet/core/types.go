@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/decred/dcrd/dcrec/secp256k1/v4"
+	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/lightningnetwork/lnd/lnwallet/chainfee"
 )
 
@@ -22,7 +22,7 @@ type WalletService interface {
 	Unlock(ctx context.Context, password string) error
 	Lock(ctx context.Context) error
 	Status(ctx context.Context) (WalletStatus, error)
-	GetPubkey(ctx context.Context) (*secp256k1.PublicKey, error)
+	GetPubkey(ctx context.Context) (*btcec.PublicKey, error)
 	GetNetwork(ctx context.Context) string
 	GetForfeitAddress(ctx context.Context) (string, error)
 	DeriveConnectorAddress(ctx context.Context) (string, error)

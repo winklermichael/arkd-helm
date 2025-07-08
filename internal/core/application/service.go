@@ -29,8 +29,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const marketHourDelta = 5 * time.Minute
-
 type service struct {
 	// services
 	wallet      ports.WalletService
@@ -1127,18 +1125,15 @@ func (s *service) GetInfo(ctx context.Context) (*ServiceInfo, error) {
 
 	var nextMarketHour *NextMarketHour
 	if marketHourConfig != nil {
-		marketHourNextStart, marketHourNextEnd, err := calcNextMarketHour(
-			marketHourConfig.StartTime, marketHourConfig.EndTime,
-			marketHourConfig.Period, marketHourDelta, time.Now(),
+		marketHourNextStart, marketHourNextEnd := calcNextMarketHour(
+			time.Now(), marketHourConfig.StartTime, marketHourConfig.EndTime,
+			marketHourConfig.Period,
 		)
-		if err != nil {
-			return nil, err
-		}
 		nextMarketHour = &NextMarketHour{
 			StartTime:     marketHourNextStart,
 			EndTime:       marketHourNextEnd,
-			Period:        time.Duration(marketHourConfig.Period) * time.Minute,
-			RoundInterval: time.Duration(marketHourConfig.RoundInterval) * time.Second,
+			Period:        marketHourConfig.Period,
+			RoundInterval: marketHourConfig.RoundInterval,
 		}
 	}
 

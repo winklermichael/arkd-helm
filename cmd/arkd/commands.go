@@ -451,6 +451,10 @@ func getMarketHourAction(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
+	if len(resp) == 0 {
+		fmt.Println("{}")
+		return nil
+	}
 
 	if resp["startTime"] != "" {
 		startTime, err := strconv.Atoi(resp["startTime"])
@@ -467,6 +471,12 @@ func getMarketHourAction(ctx *cli.Context) error {
 		}
 		endDate := time.Unix(int64(endTime), 0)
 		resp["endTime"] = endDate.Format(time.RFC3339)
+	}
+	if resp["period"] != "" {
+		resp["period"] += " minutes"
+	}
+	if resp["roundInterval"] != "" {
+		resp["roundInterval"] += " seconds"
 	}
 
 	respJson, err := json.MarshalIndent(resp, "", "  ")
@@ -494,7 +504,7 @@ func updateMarketHourAction(ctx *cli.Context) error {
 	}
 
 	url := fmt.Sprintf("%s/v1/admin/marketHour", baseURL)
-	bodyMap := map[string]string{}
+	mhConfig := map[string]string{}
 	if startDate != "" {
 		startTime, err := time.Parse(marketHourDateFormat, startDate)
 		if err != nil {
@@ -504,45 +514,24 @@ func updateMarketHourAction(ctx *cli.Context) error {
 		if err != nil {
 			return fmt.Errorf("invalid --end-date format, must be %s", marketHourDateFormat)
 		}
-		bodyMap["startTime"] = strconv.Itoa(int(startTime.Unix()))
-		bodyMap["endTime"] = strconv.Itoa(int(endTime.Unix()))
+		mhConfig["startTime"] = strconv.Itoa(int(startTime.Unix()))
+		mhConfig["endTime"] = strconv.Itoa(int(endTime.Unix()))
 	}
 	if roundInterval > 0 {
-		bodyMap["roundInterval"] = strconv.Itoa(int(roundInterval))
+		mhConfig["roundInterval"] = strconv.Itoa(int(roundInterval))
 	}
 	if period > 0 {
-		bodyMap["period"] = strconv.Itoa(int(period))
+		mhConfig["period"] = strconv.Itoa(int(period))
 	}
+	bodyMap := map[string]map[string]string{"config": mhConfig}
 	body, err := json.Marshal(bodyMap)
 	if err != nil {
 		return fmt.Errorf("failed to encode request body: %s", err)
 	}
-	resp, err := post[map[string]string](url, string(body), "", macaroon, tlsCertPath)
-	if err != nil {
+	if _, err := post[any](url, string(body), "", macaroon, tlsCertPath); err != nil {
 		return err
 	}
 
-	if resp["startTime"] != "" {
-		startTime, err := strconv.Atoi(resp["startTime"])
-		if err != nil {
-			return fmt.Errorf("failed to parse market hour start time: %s", err)
-		}
-		startDate := time.Unix(int64(startTime), 0)
-		resp["startTime"] = startDate.Format(time.RFC3339)
-	}
-	if resp["endTime"] != "" {
-		endTime, err := strconv.Atoi(resp["endTime"])
-		if err != nil {
-			return fmt.Errorf("failed to parse market hour end time: %s", err)
-		}
-		endDate := time.Unix(int64(endTime), 0)
-		resp["endTime"] = endDate.Format(time.RFC3339)
-	}
-
-	respJson, err := json.MarshalIndent(resp, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to json encode round ids: %s", err)
-	}
-	fmt.Println(string(respJson))
+	fmt.Println("Successfully updated market hour config")
 	return nil
 }

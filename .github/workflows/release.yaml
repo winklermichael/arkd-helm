@@ -24,7 +24,7 @@ jobs:
         uses: bufbuild/buf-push-action@v1        
         with:
           input: api-spec/protobuf  
-        buf_token: ${{ secrets.BUF_TOKEN }}
+          buf_token: ${{ secrets.BUF_TOKEN }}
 
   build-and-upload:
     runs-on: ubuntu-latest

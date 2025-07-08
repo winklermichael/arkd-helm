@@ -232,6 +232,55 @@ func (s *adminService) UpdateMarketHourConfig(
 	ctx context.Context,
 	marketHourStartTime, marketHourEndTime time.Time, period, roundInterval time.Duration,
 ) error {
+	if marketHourStartTime.IsZero() && marketHourEndTime.IsZero() &&
+		period <= 0 && roundInterval <= 0 {
+		return fmt.Errorf("missing market hour config")
+	}
+	startTimeSet := !marketHourStartTime.IsZero()
+	endTimeSet := !marketHourEndTime.IsZero()
+	if startTimeSet != endTimeSet {
+		return fmt.Errorf("market hour start time and end time must be set together")
+	}
+
+	marketHour, err := s.repoManager.MarketHourRepo().Get(ctx)
+	if err != nil {
+		return err
+	}
+
+	if marketHour == nil {
+		if marketHourStartTime.IsZero() {
+			return fmt.Errorf("missing market hour start time")
+		}
+		if marketHourEndTime.IsZero() {
+			return fmt.Errorf("missing market hour end time")
+		}
+		if period <= 0 {
+			return fmt.Errorf("missing market hour period")
+		}
+		if roundInterval <= 0 {
+			return fmt.Errorf("missing market hour round interval")
+		}
+	}
+
+	now := time.Now()
+	if marketHourStartTime.IsZero() {
+		marketHourStartTime = marketHour.StartTime
+	} else if !marketHourStartTime.After(now) {
+		return fmt.Errorf("market hour start time must be in the future")
+	}
+
+	if marketHourEndTime.IsZero() {
+		marketHourEndTime = marketHour.EndTime
+	} else if !marketHourEndTime.After(marketHourStartTime) {
+		return fmt.Errorf("market hour end time must be after start time")
+	}
+	if period <= 0 {
+		period = marketHour.Period
+	}
+	if roundInterval <= 0 {
+		roundInterval = marketHour.RoundInterval
+	}
+
 	mh := domain.NewMarketHour(marketHourStartTime, marketHourEndTime, period, roundInterval)
 	if err := s.repoManager.MarketHourRepo().Upsert(ctx, *mh); err != nil {
 		return fmt.Errorf("failed to upsert market hours: %w", err)

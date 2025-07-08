@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	arkv1 "github.com/arkade-os/api-spec/protobuf/gen/ark/v1"
+	arkv1 "github.com/arkade-os/arkd/api-spec/protobuf/gen/ark/v1"
 	"github.com/arkade-os/arkd/internal/core/application"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -139,29 +139,36 @@ func (a *adminHandler) CreateNote(
 func (a *adminHandler) GetMarketHourConfig(
 	ctx context.Context, _ *arkv1.GetMarketHourConfigRequest,
 ) (*arkv1.GetMarketHourConfigResponse, error) {
-	config, err := a.adminService.GetMarketHourConfig(ctx)
+	marketHour, err := a.adminService.GetMarketHourConfig(ctx)
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	return &arkv1.GetMarketHourConfigResponse{
-		Config: &arkv1.MarketHourConfig{
-			StartTime:     config.StartTime.Unix(),
-			EndTime:       config.EndTime.Unix(),
-			Period:        int64(config.Period.Seconds()),
-			RoundInterval: int64(config.RoundInterval.Seconds()),
-		},
-	}, nil
+	var config *arkv1.MarketHourConfig
+	if marketHour != nil {
+		config = &arkv1.MarketHourConfig{
+			StartTime:     marketHour.StartTime.Unix(),
+			EndTime:       marketHour.EndTime.Unix(),
+			Period:        int64(marketHour.Period.Minutes()),
+			RoundInterval: int64(marketHour.RoundInterval.Seconds()),
+		}
+	}
+
+	return &arkv1.GetMarketHourConfigResponse{Config: config}, nil
 }
 
 func (a *adminHandler) UpdateMarketHourConfig(
 	ctx context.Context, req *arkv1.UpdateMarketHourConfigRequest,
 ) (*arkv1.UpdateMarketHourConfigResponse, error) {
+	if req.GetConfig() == nil {
+		return nil, status.Error(codes.InvalidArgument, "missing market hour config")
+	}
+
 	if err := a.adminService.UpdateMarketHourConfig(
 		ctx,
 		time.Unix(req.GetConfig().GetStartTime(), 0),
 		time.Unix(req.GetConfig().GetEndTime(), 0),
-		time.Duration(req.GetConfig().GetPeriod())*time.Second,
+		time.Duration(req.GetConfig().GetPeriod())*time.Minute,
 		time.Duration(req.GetConfig().GetRoundInterval())*time.Second,
 	); err != nil {
 		return nil, status.Error(codes.Internal, err.Error())

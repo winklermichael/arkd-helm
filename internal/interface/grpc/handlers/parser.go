@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	arkv1 "github.com/arkade-os/api-spec/protobuf/gen/ark/v1"
+	arkv1 "github.com/arkade-os/arkd/api-spec/protobuf/gen/ark/v1"
 	"github.com/arkade-os/arkd/internal/core/application"
 	"github.com/arkade-os/arkd/internal/core/domain"
 	"github.com/arkade-os/arkd/pkg/ark-lib/bip322"
@@ -248,7 +248,7 @@ func (mh marketHour) toProto() *arkv1.MarketHour {
 	return &arkv1.MarketHour{
 		NextStartTime: mh.t.StartTime.Unix(),
 		NextEndTime:   mh.t.EndTime.Unix(),
-		Period:        int64(mh.t.Period),
-		RoundInterval: int64(mh.t.RoundInterval),
+		Period:        int64(mh.t.Period.Minutes()),
+		RoundInterval: int64(mh.t.RoundInterval.Seconds()),
 	}
 }

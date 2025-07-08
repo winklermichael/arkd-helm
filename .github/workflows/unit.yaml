@@ -23,7 +23,7 @@ jobs:
         run: |
           go mod tidy
           if [[ -n $(git status --porcelain) ]]; then
-            echo "Changes detected after running go work sync and go mod tidy"
+            echo "Changes detected after running go mod tidy"
             git diff
             exit 1
           fi

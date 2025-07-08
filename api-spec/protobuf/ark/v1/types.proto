@@ -78,7 +78,7 @@ message BatchFinalizedEvent {
   string commitment_txid = 2;
 }
 
-message BatchFailed {
+message BatchFailedEvent {
   string id = 1;
   string reason = 2;
 }

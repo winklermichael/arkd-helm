@@ -1,4 +1,4 @@
-module github.com/arkade-os/api-spec
+module github.com/arkade-os/arkd/api-spec
 
 go 1.23.1
 
