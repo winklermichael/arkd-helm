@@ -362,7 +362,7 @@ func (i *indexerService) GetVirtualTxs(
 func (i *indexerService) GetBatchSweepTxs(
 	ctx context.Context, batchOutpoint Outpoint,
 ) ([]string, error) {
-	round, err := i.repoManager.Rounds().GetRoundWithId(ctx, batchOutpoint.Txid)
+	round, err := i.repoManager.Rounds().GetRoundWithCommitmentTxid(ctx, batchOutpoint.Txid)
 	if err != nil {
 		return nil, err
 	}
