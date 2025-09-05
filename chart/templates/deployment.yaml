@@ -1,0 +1,167 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "arkd.fullname" . }}
+  labels:
+    {{- include "arkd.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "arkd.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "arkd.labels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "arkd.serviceAccountName" . }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: arkd
+              containerPort: {{ .Values.service.targetPort }}
+              protocol: TCP
+          env:
+            - name: ARKD_DATADIR
+              value: "/app/data"
+            - name: ARKD_PORT
+              value: {{ .Values.service.targetPort | quote }}
+            - name: ARKD_LOG_LEVEL
+              value: {{ .Values.arkd.logLevel | quote }}
+            - name: ARKD_ROUND_INTERVAL
+              value: {{ .Values.arkd.roundInterval | quote }}
+            - name: ARKD_DB_TYPE
+              value: {{ .Values.database.type | quote }}
+            - name: ARKD_PG_DB_URL
+              {{- if and .Values.database.existingSecret .Values.database.existingSecretKey }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.existingSecret }}
+                  key: {{ .Values.database.existingSecretKey }}
+              {{- else }}
+              value: {{ .Values.database.url | quote }}
+              {{- end }}
+            - name: ARKD_EVENT_DB_TYPE
+              value: {{ .Values.database.event.type| quote }}
+            - name: ARKD_PG_EVENT_DB_URL
+              {{- if and .Values.database.event.existingSecret .Values.database.event.existingSecretKey }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.event.existingSecret }}
+                  key: {{ .Values.database.event.existingSecretKey }}
+              {{- else }}
+              value: {{ .Values.database.event.url | quote }}
+              {{- end }}
+            - name: ARKD_TX_BUILDER_TYPE
+              value: {{ .Values.arkd.txBuilderType | quote }}
+            - name: ARKD_LIVE_STORE_TYPE
+              value: {{ .Values.livestore.type | quote }}
+            - name: ARKD_REDIS_URL
+              {{- if and .Values.livestore.existingSecret .Values.livestore.existingSecretKey }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.livestore.existingSecret }}
+                  key: {{ .Values.livestore.existingSecretKey }}
+              {{- else }}
+              value: {{ .Values.livestore.url | quote }}
+              {{- end }}
+            - name: ARKD_VTXO_TREE_EXPIRY
+              value: {{ .Values.arkd.vtxo.treeExpiry | quote }}
+            - name: ARKD_UNILATERAL_EXIT_DELAY
+              value: {{ .Values.arkd.unilateralExitDelay | quote }}
+            - name: ARKD_BOARDING_EXIT_DELAY
+              value: {{ .Values.arkd.boardingExitDelay | quote }}
+            - name: ARKD_ESPLORA_URL
+              value: {{ .Values.arkd.esploraUrl | quote }}
+            - name: ARKD_WALLET_ADDR
+              value: {{ .Values.arkd.walletAddr | quote }}
+            - name: ARKD_NO_MACAROONS
+              value: {{ .Values.arkd.noMacaroons | quote }}
+            - name: ARKD_NO_TLS
+              value: {{ .Values.arkd.noTls | quote }}
+            - name: ARKD_UNLOCKER_TYPE
+              value: {{ .Values.arkd.unlocker.type | quote }}
+            - name: ARKD_UNLOCKER_FILE_PATH
+              value: {{ .Values.arkd.unlocker.filePath | quote }}
+            - name: ARKD_UNLOCKER_PASSWORD
+              {{- if and .Values.arkd.unlocker.existingSecret .Values.arkd.unlocker.existingSecretKey }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.arkd.unlocker.existingSecret }}
+                  key: {{ .Values.arkd.unlocker.existingSecretKey }}
+              {{- else }}
+              value: {{ .Values.arkd.unlocker.password | quote }}
+              {{- end }}
+            - name: ARKD_ROUND_MAX_PARTICIPANTS_COUNT
+              value: {{ .Values.arkd.round.maxParticipantsCount | quote }}
+            - name: ARKD_ROUND_MIN_PARTICIPANTS_COUNT
+              value: {{ .Values.arkd.round.minParticipantsCount | quote }}
+            - name: ARKD_UTXO_MAX_AMOUNT
+              value: {{ .Values.arkd.utxo.maxAmount | quote }}
+            - name: ARKD_UTXO_MIN_AMOUNT
+              value: {{ .Values.arkd.utxo.minAmount | quote }}
+            - name: ARKD_VTXO_MAX_AMOUNT
+              value: {{ .Values.arkd.vtxo.maxAmount | quote }}
+            - name: ARKD_VTXO_MIN_AMOUNT
+              value: {{ .Values.arkd.vtxo.minAmount | quote }}
+          {{- with .Values.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+      volumes:
+        - name: data
+          {{- if not .Values.persistence.enabled }}
+          emptyDir: {}
+          {{- else if .Values.persistence.existingClaim | default "" | ne "" }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.existingClaim }}
+          {{- else }}
+          persistentVolumeClaim:
+            claimName: {{ include "arkd.fullname" . }}-pvc
+          {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

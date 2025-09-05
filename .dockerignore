@@ -1,6 +1,7 @@
 .git
 .github
 .run
+chart/
 **/dist/
 **/build/
 **/data/
