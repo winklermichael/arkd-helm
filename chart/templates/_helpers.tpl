@@ -1,37 +1,55 @@
 {{/*
-Expand the name of the chart.
+Expand the name of the chart for arkd.
 */}}
 {{- define "arkd.name" -}}
-{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
+{{- default .Chart.Name .Values.arkd.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
-Create a default fully qualified app name.
-We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
-If release name contains chart name it will be used as a full name.
+Expand the name of the chart for arkdwallet.
+*/}}
+{{- define "arkdwallet.name" -}}
+{{- default "arkdwallet" .Values.arkdwallet.nameOverride | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{/*
+Create a default fully qualified app name for arkd.
 */}}
 {{- define "arkd.fullname" -}}
-{{- if .Values.fullnameOverride }}
-{{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
+{{- if .Values.arkd.fullnameOverride }}
+{{- .Values.arkd.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
-{{- $name := default .Chart.Name .Values.nameOverride }}
-{{- if contains $name .Release.Name }}
-{{- .Release.Name | trunc 63 | trimSuffix "-" }}
-{{- else }}
-{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" }}
-{{- end }}
+{{- printf "%s-%s" .Release.Name "arkd" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 {{- end }}
 
 {{/*
-Create chart name and version as used by the chart label.
+Create a default fully qualified app name for arkdwallet.
+*/}}
+{{- define "arkdwallet.fullname" -}}
+{{- if .Values.arkdwallet.fullnameOverride }}
+{{- .Values.arkdwallet.fullnameOverride | trunc 63 | trimSuffix "-" }}
+{{- else }}
+{{- printf "%s-%s" .Release.Name "arkdwallet" | trunc 63 | trimSuffix "-" }}
+{{- end }}
+{{- end }}
+
+{{/*
+Create chart name and version as used by the chart label for arkd.
 */}}
 {{- define "arkd.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
-Common labels
+Create chart name and version as used by the chart label for arkdwallet.
+*/}}
+{{- define "arkdwallet.chart" -}}
+{{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{/*
+Common labels for arkd.
 */}}
 {{- define "arkd.labels" -}}
 helm.sh/chart: {{ include "arkd.chart" . }}
@@ -43,7 +61,19 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end }}
 
 {{/*
-Selector labels
+Common labels for arkdwallet.
+*/}}
+{{- define "arkdwallet.labels" -}}
+helm.sh/chart: {{ include "arkdwallet.chart" . }}
+{{ include "arkdwallet.selectorLabels" . }}
+{{- if .Chart.AppVersion }}
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+{{- end }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- end }}
+
+{{/*
+Selector labels for arkd.
 */}}
 {{- define "arkd.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "arkd.name" . }}
@@ -51,12 +81,31 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
-Create the name of the service account to use
+Selector labels for arkdwallet.
+*/}}
+{{- define "arkdwallet.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "arkdwallet.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+
+{{/*
+Create the name of the service account to use for arkd.
 */}}
 {{- define "arkd.serviceAccountName" -}}
-{{- if .Values.serviceAccount.create }}
-{{- default (include "arkd.fullname" .) .Values.serviceAccount.name }}
+{{- if .Values.arkd.serviceAccount.create }}
+{{- default (include "arkd.fullname" .) .Values.arkd.serviceAccount.name }}
 {{- else }}
-{{- default "default" .Values.serviceAccount.name }}
+{{- default "default" .Values.arkd.serviceAccount.name }}
+{{- end }}
+{{- end }}
+
+{{/*
+Create the name of the service account to use for arkdwallet.
+*/}}
+{{- define "arkdwallet.serviceAccountName" -}}
+{{- if .Values.arkdwallet.serviceAccount.create }}
+{{- default (include "arkdwallet.fullname" .) .Values.arkdwallet.serviceAccount.name }}
+{{- else }}
+{{- default "default" .Values.arkdwallet.serviceAccount.name }}
 {{- end }}
 {{- end }}

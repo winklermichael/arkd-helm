@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "arkdwallet.fullname" . }}
+  labels:
+    {{- include "arkdwallet.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.arkdwallet.service.type }}
+  ports:
+    - port: {{ .Values.arkdwallet.service.port }}
+      targetPort: {{ .Values.arkdwallet.service.targetPort }}
+      protocol: TCP
+      name: arkdwallet
+  selector:
+    {{- include "arkdwallet.selectorLabels" . | nindent 4 }}

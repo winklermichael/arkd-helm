@@ -1,0 +1,18 @@
+{{- if and .Values.arkd.persistence.enabled (empty .Values.arkd.persistence.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "arkd.fullname" . }}-pvc
+  labels:
+    app.kubernetes.io/name: {{ include "arkd.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  accessModes:
+    - {{ .Values.arkd.persistence.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.arkd.persistence.size }}
+  {{- if .Values.arkd.persistence.storageClass }}
+  storageClassName: {{ .Values.arkd.persistence.storageClass }}
+  {{- end }}
+{{- end }}

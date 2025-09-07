@@ -1,0 +1,43 @@
+{{- if .Values.arkd.ingress.enabled -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "arkd.fullname" . }}
+  labels:
+    {{- include "arkd.labels" . | nindent 4 }}
+  {{- with .Values.arkd.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.arkd.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- if .Values.arkd.ingress.tls }}
+  tls:
+    {{- range .Values.arkd.ingress.tls }}
+    - hosts:
+        {{- range .hosts }}
+        - {{ . | quote }}
+        {{- end }}
+      secretName: {{ .secretName }}
+    {{- end }}
+  {{- end }}
+  rules:
+    {{- range .Values.arkd.ingress.hosts }}
+    - host: {{ .host | quote }}
+      http:
+        paths:
+          {{- range .paths }}
+          - path: {{ .path }}
+            {{- with .pathType }}
+            pathType: {{ . }}
+            {{- end }}
+            backend:
+              service:
+                name: {{ include "arkd.fullname" $ }}
+                port:
+                  number: {{ $.Values.arkd.service.port }}
+          {{- end }}
+    {{- end }}
+{{- end }}

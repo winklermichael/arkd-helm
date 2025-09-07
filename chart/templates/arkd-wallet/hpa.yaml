@@ -1,0 +1,32 @@
+{{- if .Values.arkdwallet.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "arkdwallet.fullname" . }}
+  labels:
+    {{- include "arkdwallet.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "arkdwallet.fullname" . }}
+  minReplicas: {{ .Values.arkdwallet.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.arkdwallet.autoscaling.maxReplicas }}
+  metrics:
+    {{- if .Values.arkdwallet.autoscaling.targetCPUUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.arkdwallet.autoscaling.targetCPUUtilizationPercentage }}
+    {{- end }}
+    {{- if .Values.arkdwallet.autoscaling.targetMemoryUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.arkdwallet.autoscaling.targetMemoryUtilizationPercentage }}
+    {{- end }}
+{{- end }}

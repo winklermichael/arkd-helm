@@ -11,5 +11,21 @@ spec:
     - name: wget
       image: busybox
       command: ['wget']
-      args: ['{{ include "arkd.fullname" . }}:{{ .Values.service.port }}']
+      args: ['{{ include "arkd.fullname" . }}:{{ .Values.arkd.service.port }}']
+  restartPolicy: Never
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ include "arkdwallet.fullname" . }}-test-connection"
+  labels:
+    {{- include "arkdwallet.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": test
+spec:
+  containers:
+    - name: wget
+      image: busybox
+      command: ['wget']
+      args: ['{{ include "arkdwallet.fullname" . }}:{{ .Values.arkdwallet.service.port }}']
   restartPolicy: Never

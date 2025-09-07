@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "arkdwallet.fullname" . }}
+  labels:
+    {{- include "arkdwallet.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.arkdwallet.autoscaling.enabled }}
+  replicas: {{ .Values.arkdwallet.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "arkdwallet.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.arkdwallet.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "arkdwallet.labels" . | nindent 8 }}
+        {{- with .Values.arkdwallet.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.arkdwallet.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "arkdwallet.serviceAccountName" . }}
+      {{- with .Values.arkdwallet.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}
+          {{- with .Values.arkdwallet.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          image: "{{ .Values.arkdwallet.image.repository }}:{{ .Values.arkdwallet.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.arkdwallet.image.pullPolicy }}
+          ports:
+            - name: arkdwallet
+              containerPort: {{ .Values.arkdwallet.service.targetPort }}
+              protocol: TCP
+          env:
+            - name: ARKD_WALLET_BITCOIND_RPC_USER
+              value: {{ .Values.arkdwallet.bitcoind.rpc.username | quote }}
+            - name: ARKD_WALLET_BITCOIND_RPC_PASS
+              {{- if and .Values.arkdwallet.bitcoind.rpc.existingSecret .Values.arkdwallet.bitcoind.rpc.existingSecretKey }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.arkdwallet.bitcoind.rpc.existingSecret }}
+                  key: {{ .Values.arkdwallet.bitcoind.rpc.existingSecretKey }}
+              {{- else }}
+              value: {{ .Values.arkdwallet.bitcoind.rpc.password | quote }}
+              {{- end }}
+            - name: ARKD_WALLET_BITCOIND_RPC_HOST
+              value: {{ .Values.arkdwallet.bitcoind.rpc.host | quote }}
+            - name: ARKD_WALLET_BITCOIND_ZMQ_BLOCK
+              value: {{ .Values.arkdwallet.bitcoind.zmq.block | quote }}
+            - name: ARKD_WALLET_BITCOIND_ZMQ_TX
+              value: {{ .Values.arkdwallet.bitcoind.zmq.tx | quote }}
+            - name: ARKD_WALLET_NEUTRINO_PEER
+              value: {{ .Values.arkdwallet.neutrinoPeer | quote }}
+          {{- with .Values.arkdwallet.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.arkdwallet.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.arkdwallet.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts: []
+      volumes: []
+      {{- with .Values.arkdwallet.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.arkdwallet.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.arkdwallet.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

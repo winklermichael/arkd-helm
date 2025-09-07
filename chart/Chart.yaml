@@ -27,8 +27,8 @@ dependencies:
   - name: postgresql
     version: 16.7.27
     repository: https://charts.bitnami.com/bitnami
-    condition: database.create
+    condition: arkd.database.create
   - name: redis
     version: 22.0.7
     repository: https://charts.bitnami.com/bitnami
-    condition: livestore.create
+    condition: arkd.livestore.create
